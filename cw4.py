@@ -18,6 +18,7 @@ class Attribute:
     def __repr__(self):
         return self.name
 
+
 class Node:
     def __init__(self, attribute, index):
         self.child_nodes = {}
@@ -115,57 +116,36 @@ class Tree:
         return np.unique(classes, return_counts=True)[1]
 
     @staticmethod
-    def create_examples_as_string(examples: np.ndarray, divide_param=3):
-        string_examples = np.ndarray(shape=examples.shape, dtype=np.dtype("U100"))
-        for i in range(np.size(examples, axis=1)):
-            example = examples[:, i]
-            if examples.dtype in ["float64", "int64"]:
-                min_val = round(np.min(example), 2)
-                max_val = round(np.max(example), 2)
-                val_range = max_val-min_val
-                if min_val == 0 and max_val == 1:
-                    string_examples[:, i] = example.astype("uint8").astype("str")
-                else:
-                    val_range = round(val_range/divide_param, 2)
-                    for j, val in enumerate(example):
-                        if val < min_val+val_range:
-                            string_examples[j, i] = f"<{min_val+val_range}"
-                        elif val > max_val-val_range:
-                            string_examples[j, i] = f">{max_val - val_range}"
-                        else:
-                            string_examples[j, i] = f"{min_val+val_range}-{max_val - val_range}"
-            else:
-                string_examples[:, i] = example.astype("str")
-        return string_examples
-
-    @staticmethod
     def preprocess_input_dataset(
-        input_dataset: pd.DataFrame, class_name=None, divide_param=3
+        input_dataset: pd.DataFrame, class_idx=-1, id_idx=None, bins_nr=5
     ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
-        if not class_name:
-            class_name = input_dataset.columns[0]
-            print(
-                f"class name was not passed, taking last column from given DataFrame: {class_name}"
-            )
-        #id_name = input_dataset.columns[0]
-        classes = input_dataset[class_name].to_numpy()
-        #classes.replace(('yes', 'no'), (1, 0), inplace=True)
-        tmp_attributes = np.delete(dataset.columns.to_numpy(), [0])
+        columns_to_drop = [input_dataset.columns[class_idx]]
+        idx_to_drop = [class_idx]
+        if id_idx is not None:
+            columns_to_drop.append(input_dataset.columns[id_idx])
+            idx_to_drop.append(id_idx)
+        classes = input_dataset[input_dataset.columns[class_idx]].to_numpy()
+        tmp_attributes = np.delete(input_dataset.columns.to_numpy(), idx_to_drop)
         attributes = np.ndarray((tmp_attributes.size,), dtype=Attribute)
-        examples = input_dataset.drop([class_name], axis=1).to_numpy()
-        string_examples = Tree.create_examples_as_string(examples, divide_param)
+        examples = input_dataset.drop(columns_to_drop, axis=1)
+        for inx in range(tmp_attributes.size):
+            processed_data = examples[examples.columns[inx]]
+            pos_value = len(processed_data.unique())
+            if pos_value > 20:
+                examples[examples.columns[inx]] = pd.cut(processed_data, bins=bins_nr, labels=np.arange(bins_nr))
+        examples = examples.to_numpy(dtype=np.dtype("object"))
         for idx, name in enumerate(tmp_attributes):
-            attributes[idx] = Attribute(name, np.unique(string_examples[:, idx]))
-        return attributes, string_examples, classes
+            attributes[idx] = Attribute(name, np.unique(examples[:, idx]))
+        return attributes, examples, classes
 
     def train(
-        self, dataset: pd.DataFrame, class_name=None
+        self, dataset: pd.DataFrame, class_idx=-1, id_idx=None, bins_nr=5
     ):
         attributes, all_examples, all_classes = self.preprocess_input_dataset(
-            dataset, class_name
+            dataset, class_idx, id_idx, bins_nr
         )
-        examples, t_examples = train_test_split(all_examples, test_size=0.4, random_state=0, shuffle=True)
-        classes, t_classes = train_test_split(all_classes, test_size=0.4, random_state=0, shuffle=True)
+        examples, t_examples = train_test_split(all_examples, test_size=0.4, random_state=2, shuffle=True)
+        classes, t_classes = train_test_split(all_classes, test_size=0.4, random_state=2, shuffle=True)
 
         self.model = Tree._train(attributes, examples, classes, 1)
 
@@ -218,7 +198,7 @@ class Tree:
             raise Exception(f"Wrong input size, to predict must be single example")
         else:
             while model.node_name != "leaf":
-                anazyzed_value = str(example[model.index])
+                anazyzed_value = example[model.index]
                 example = np.delete(example, model.index)
                 model = model.child_nodes[anazyzed_value]
             return model.value
@@ -227,6 +207,8 @@ class Tree:
         pass
 
     def evaluate(self, examples: np.ndarray, classes: np.ndarray):
+        # TODO find solution with datatype of classes, best is int64 but sometimes it can failed if classes are not numbers
+        classes = classes.astype(np.dtype("object"))
         predicted_classes = np.zeros(shape=classes.shape, dtype=np.dtype("object"))
         for i, example in enumerate(examples):
             label = self.predict(example)
@@ -255,8 +237,7 @@ class Leaf:
 dataset_path = "/home/stepi2299/studia/test.csv"
 dataset_path1 = "/home/stepi2299/studia/WSI/breast-cancer.csv"
 dataset_path2 = "/home/stepi2299/studia/WSI/agaricus-lepiota.csv"
-dataset = pd.read_csv(dataset_path2)
-print(dataset.to_numpy().shape)
+dataset = pd.read_csv(dataset_path)
 tree = Tree()
 tree.train(dataset)
 
