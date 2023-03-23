@@ -7,8 +7,6 @@ from sklearn.model_selection import train_test_split
 from typing import Tuple, Dict, Union
 
 THRESHOLD = 0.6
-
-
 class Attribute:
     def __init__(self, name, values):
         self.name = name
@@ -260,10 +258,6 @@ class Tree:
         print("classification report:")
         print(report)
 
-    # TODO
-    def metrics(self):
-        pass
-
 
 class Leaf:
     def __init__(self, value):
@@ -274,10 +268,8 @@ class Leaf:
         return self.value
 
 
-dataset_path = "/home/stepi2299/studia/test.csv"
-dataset_path1 = "/home/stepi2299/studia/WSI/breast-cancer.csv"
-dataset_path2 = "/home/stepi2299/studia/WSI/agaricus-lepiota.csv"
-dataset = pd.read_csv(dataset_path1)
+dataset_path = "path/to/dataset.csv"
+dataset = pd.read_csv(dataset_path)
 tree = Tree()
 tree.train(dataset, class_idx=-1, id_idx=None)
 
